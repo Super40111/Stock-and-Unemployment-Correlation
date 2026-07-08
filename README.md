@@ -1,5 +1,7 @@
 # Stock-and-Unemployment-Correlation
 
+The goal of this project was to develop an automated data pipeline using Apache Airflow and the World Bank's APIs to collect, transform, analyze, and visualize global stock market and unemployment data. This system is designed to generate automated reports, and create an interactive HTML dashboard on a weekly schedule. Overall, the main purpose of this project is to demonstrate data engineering, workflow automation, API integration, statistical analysis, and reporting capabilities.
+
 The attached file is a DAG that is designed to be run in Apache Airflow. When run, it will take data from the World Bank Group regarding unemployment rates and Stock values using its API. It will then output a set csv files as well as a HTML file in into a new folder named "Data" within the Apache Airflow directory. Assuming Apache Airflow is running, the file automatically runs weekly and will attempt up to two retries spaced 5 minutes apart if there are any errors.
 
 In order to install this file, you need to have Apache Airflow installed on your computer. When installed, simplyput the file within the "dags" folder.
