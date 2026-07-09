@@ -4,7 +4,7 @@ The goal of this project was to develop an automated data pipeline using Apache 
 
 The attached file is a DAG that is designed to be run in Apache Airflow. When run, it will take data from the World Bank Group regarding unemployment rates and Stock values using its API. It will then output a set csv files as well as a HTML file in into a new folder named "Data" within the Apache Airflow directory. Assuming Apache Airflow is running, the file automatically runs weekly and will attempt up to two retries spaced 5 minutes apart if there are any errors.
 
-In order to install this file, you need to have Apache Airflow installed on your computer. When installed, simplyput the file within the "dags" folder.
+In order to install this file, you need to have Apache Airflow installed on your computer. When installed, simply put the file within the "dags" folder. While this file utilizes a "data folder within the same directory, the DAG will automatically create said folder when run.
 
 Each of the csv files generated presents its data with each country in the x axis and each year as the y axis. Some country/year combinations do not have data associated with them and are labeled "N/A". The csv files generated are:
 
