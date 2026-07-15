@@ -172,7 +172,7 @@ def shift_Unemployment(**context):
 def shift_Stock(**context):
     return compute_shift(
         "remove_NA_Stock",
-        "/opt/airflow/data/stock_shift_year-over-year.csv",
+        "/opt/airflow/data/stock_year-over-year.csv",
         **context
     )
 
@@ -224,7 +224,7 @@ def compute_correlation(**context):
     return out_path
 
 def generate_chart(**context):
-    df_corr = pd.read_csv("/opt/airflow/data/unemployment_stock_correlation_final.csv")
+    df_corr = pd.read_csv("/opt/airflow/data/unemployment_stock_correlation.csv")
 
     df_corr["Valid_Overlapping_Rows"] = df_corr["Valid_Overlapping_Rows"].apply(lambda x: int(x))
 
@@ -292,10 +292,10 @@ def generate_chart(**context):
   </div>
 </div>
 
-<p class="callout">Each bar shows how closely a country's stock market moves in relation to its unemployment rate. 
-Bars pointing left (blue) mean stocks generally fall when unemployment rise (Negative Correlation). 
-Bars pointing right (red) mean they tend to move in the same direction (Positive Correlation). 
-The min overlapping years lets you filter the countries that show up based on the amount of years that there is recoreded data of that country.</p>
+<p class="callout">Each bar shows how closely a country's stock market moves in relation to its unemployment rate.
+Bars pointing left (blue) mean stocks generally fall when unemployment rises (Negative Correlation).
+Bars pointing right (red) mean they tend to move in the same direction (Positive Correlation).
+The min overlapping years lets you filter the countries that show up based on the amount of years that there is recorded data of that country.</p>
 
 <div style="position:relative;width:100%;height:{chart_height}px;">
   <canvas id="bar" role="img" aria-label="Horizontal bar chart showing correlation between unemployment and stock market change per country">
@@ -403,12 +403,11 @@ t2S = PythonOperator(dag=dag, task_id="remove_NA_Stock", python_callable=remove_
 t3S = PythonOperator(dag=dag, task_id="shift_Stock", python_callable=shift_Stock)
 
 t6 = PythonOperator(dag=dag, task_id="compute_correlation", python_callable=compute_correlation)
-t7 = PythonOperator(dag=dag, task_id="load_correlation", python_callable=load_correlation)
-t8 = PythonOperator(dag=dag, task_id="generate_chart", python_callable=generate_chart)
+t7 = PythonOperator(dag=dag, task_id="generate_chart", python_callable=generate_chart)
 
 t1U >> t2U >> t3U
 t1S >> t2S >> t3S
 
 t3U >> t6
 t3S >> t6
-t6 >> t7 >> t8
+t6 >> t7
