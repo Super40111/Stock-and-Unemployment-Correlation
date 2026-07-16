@@ -17,3 +17,5 @@ Each of the csv files generated presents its data with each country in the x axi
   -unemployment_stock_correlation.csv: Shows the correlation between stock values and unemployment rates (Positive correlation means when umemployment rates increase, the stock values increase). 
 
 The sole html file generated is named "correlation_chart.html". It displays an infographic based on the correlation between the stock value and unemployment rates of each country. The infographic also provides an average correlation alongside the ability to filter the countries shown based on how many entries each country has.
+
+The main DAG file may show a set of errors about certain library imports not being able to be resolved. These are fine as Apache Airflow has these librarys built in and will be able to handle the imports.
