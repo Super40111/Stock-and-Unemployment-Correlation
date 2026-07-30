@@ -4,6 +4,9 @@
 
 This data pipeline uses Apache Airflow and the World Bank's APIs to collect, transform, analyze, and visualize global stock market and unemployment data. This project demonstrates utilizes data engineering, workflow automation, API integration, statistical analysis, and automatic scheduling and reporting capabilities to complete this task. This system is designed to generate automated reports, and create an interactive HTML dashboard on a weekly schedule. The data here is primarily useful for those who are interested in viewing global trends related to stocks or unemployment, such as financial analysts, economic researchers, or government agencies. 
 
+<img width="1680" height="890" alt="Stock-Unemployment Example" src="https://github.com/user-attachments/assets/22e0d1f5-8874-4876-8d35-e5f2d885f6b5" />
+
+
 The attached file is a DAG that is designed to be run in Apache Airflow. When run, it will take data from the World Bank Group regarding unemployment rates and Stock values using its API. It will then output a set csv files as well as a HTML file in into a new folder named "Data" within the Apache Airflow directory. Assuming Apache Airflow is running, the file automatically runs weekly and will attempt up to two retries spaced 5 minutes apart if there are any errors.
 
 ## Installlation
