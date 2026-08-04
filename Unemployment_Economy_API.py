@@ -6,22 +6,22 @@ import requests
 import json
 import os
 
-SOURCE_UNEMPLOYMENT = 2
+SOURCE_UNEMPLOYMENT = 2 
 SOURCE_STOCK = 15
 
 API_BASE = "https://api.worldbank.org/v2"
 
-SERIES_UNEMPLOYMENT = "SL.UEM.TOTL.ZS"
+SERIES_UNEMPLOYMENT = "SL.UEM.TOTL.ZS" #API KEYS
 SERIES_STOCK = "DSTKMKTXD"
 
 default_args = {
     "owner": "User",
-    "start_date": datetime(2026, 3, 13),
-    "retries": 0,
+    "start_date": datetime(2026, 6, 13),
+    "retries": 2,
     "retry_delay": timedelta(minutes=5)
 }
 
-dag = DAG(
+dag = DAG( 
     dag_id="Unemployed_Economy_API",
     default_args=default_args,
     description="Parallel API pipelines for unemployment and stock data",
@@ -29,47 +29,47 @@ dag = DAG(
     catchup=False
 )
 
-def fetch_indicator_from_api(indicator_code, source_id):
+def fetch_indicator_from_api(indicator_code, source_id): #Function used to pull a specific dataset using the API
     all_rows = []
     page = 1
     pages = 1
 
     while page <= pages:
-        url = f"{API_BASE}/country/all/indicator/{indicator_code}"
+        url = f"{API_BASE}/country/all/indicator/{indicator_code}" #Creates the API URL
 
         params = {
             "source": source_id,
             "format": "json",
             "per_page": 20000,
             "page": page
-        }
+        } #Sets query Parameters
 
         response = requests.get(url, params=params, timeout=60)
-        response.raise_for_status()
+        response.raise_for_status() 
 
-        data = response.json()
+        data = response.json() #Fetches the request and makes sure a proper request is received. If good data is recieved, it is stored as a variable.
 
-        if not isinstance(data, list) or len(data) < 2:
+        if not isinstance(data, list) or len(data) < 2: #Throws if data is bad
             raise ValueError(f"Unexpected API response for indicator {indicator_code}: {data}")
 
         metadata = data[0]
         rows = data[1] or []
 
-        all_rows.extend(rows)
+        all_rows.extend(rows) #Logs the correct data and appends the rows of data
 
-        pages = int(metadata.get("pages", 1))
+        pages = int(metadata.get("pages", 1)) #Sets the max page to the correct value and increments the current page.
         page += 1
 
-    if not all_rows:
+    if not all_rows: #Makes sure that the data returned is not empty
         raise ValueError(f"No API data returned for indicator {indicator_code}")
 
     return all_rows
 
 def extract_indicator(indicator_code, source_id, output_path):
-    os.makedirs("/opt/airflow/data", exist_ok=True)
-    rows = fetch_indicator_from_api(indicator_code, source_id)
+    os.makedirs("/opt/airflow/data", exist_ok=True) #Creates a data directory
+    rows = fetch_indicator_from_api(indicator_code, source_id) #Pulls raw data using previous function
 
-    df = pd.json_normalize(rows)
+    df = pd.json_normalize(rows) #Converts the results into a dataframe
 
     required_cols = ["date", "country.value", "value"]
     missing_cols = [col for col in required_cols if col not in df.columns]
@@ -77,39 +77,39 @@ def extract_indicator(indicator_code, source_id, output_path):
     if missing_cols:
         raise ValueError(f"Missing expected columns from API response: {missing_cols}")
 
-    df = df[required_cols]
+    df = df[required_cols] #Grabs the required columns and removes anything else
 
     df = df.rename(columns={
         "date": "Year",
         "country.value": "Country",
         "value": "Value"
-    })
+    }) 
 
-    df["Value"] = pd.to_numeric(df["Value"], errors="coerce")
+    df["Value"] = pd.to_numeric(df["Value"], errors="coerce") 
 
     df = df.pivot_table(
         index="Year",
         columns="Country",
         values="Value",
         aggfunc="first"
-    )
+    ) #Converts the data set so rows are Years and columns are Countries
 
     df = df.reset_index()
     df = df.sort_values("Year").reset_index(drop=True)
-    df = df.fillna("N/A")
-    df.columns = df.columns.map(str)
+    df = df.fillna("N/A") #Sorts the data by year and makes any empty data 'N/A'
+    df.columns = df.columns.map(str) #Makes sure all column names are strings.
 
-    df.to_csv(output_path, index=False)
+    df.to_csv(output_path, index=False) #Takes the current data and converts it into a csv
     return output_path
 
-def extract_Unemployment():
+def extract_Unemployment(): #Puts the raw data from the first data set into a csv file
     return extract_indicator(
         SERIES_UNEMPLOYMENT,
         SOURCE_UNEMPLOYMENT,
         "/opt/airflow/data/unemployment_raw.csv"
     )
 
-def extract_Stock():
+def extract_Stock(): #Puts the raw data from the second data set into a csv file
     return extract_indicator(
         SERIES_STOCK,
         SOURCE_STOCK,
@@ -121,33 +121,33 @@ def remove_NA(task_id, output_path, **context):
     df = pd.read_csv(path)
 
     cols_to_drop = [
-        col for col in df.columns
-        if col != "Year" and df[col].isna().all()
-    ]
+    col for col in df.columns
+    if col != "Year" and (df[col].iloc[1:].isna().all() or(df[col].iloc[1:] == "N/A").all())
+    ] #Gets all columns with only "N/A" in order to remove them
 
     df = df.drop(columns=cols_to_drop)
-    df.to_csv(output_path, index=False)
+    df.to_csv(output_path, index=False) #Drops targeted columns and creates a csv file with the remaining data.
     return output_path
 
-def remove_NA_Unemployment(**context):
+def remove_NA_Unemployment(**context): #Removes empty columns from the first data set
     return remove_NA(
         "extract_Unemployment",
         "/opt/airflow/data/unemployment_na_removed.csv",
         **context
     )
 
-def remove_NA_Stock(**context):
+def remove_NA_Stock(**context): #Removes empty columns from the second data set
     return remove_NA(
         "extract_Stock",
         "/opt/airflow/data/stock_na_removed.csv",
         **context
     )
 
-def compute_shift(task_id, output_path, **context):
+def compute_shift(task_id, output_path, **context): #Computes the shift over time
     path = context["ti"].xcom_pull(task_ids=task_id)
-    df = pd.read_csv(path)
+    df = pd.read_csv(path) #Pulls the data from the saved context
 
-    df_new = df.copy()
+    df_new = df.copy() #Creates a new df and copies the old data into the new one.
 
     numeric_cols = [col for col in df.columns if col != "Year"]
     converted = df[numeric_cols].apply(pd.to_numeric, errors="coerce")
@@ -157,19 +157,21 @@ def compute_shift(task_id, output_path, **context):
         result = converted[col] - prev_value
         result = result.where(prev_value.notna(), 0)
         result = result.where(converted[col].notna(), "N/A")
-        df_new[col] = result
+        df_new[col] = result #For each column, calculate the difference between it and the data point above it and saves it into the new dataframe
+
+    df_new = df_new.iloc[1:].reset_index(drop=True)
 
     df_new.to_csv(output_path, index=False)
     return output_path
 
-def shift_Unemployment(**context):
+def shift_Unemployment(**context): #Creates a file for the first dataset that shows the shift from year to year
     return compute_shift(
         "remove_NA_Unemployment",
         "/opt/airflow/data/unemployment_year-over-year.csv",
         **context
     )
 
-def shift_Stock(**context):
+def shift_Stock(**context): #Creates a file for the second dataset that shows the shift from year to year
     return compute_shift(
         "remove_NA_Stock",
         "/opt/airflow/data/stock_year-over-year.csv",
@@ -180,22 +182,21 @@ def compute_correlation(**context):
     ti = context["ti"]
 
     path_u = ti.xcom_pull(task_ids="shift_Unemployment")
-    path_s = ti.xcom_pull(task_ids="shift_Stock")
+    path_s = ti.xcom_pull(task_ids="shift_Stock") 
 
     df_u = pd.read_csv(path_u).set_index("Year")
-    df_s = pd.read_csv(path_s).set_index("Year")
-
-    common_cols = df_u.columns.intersection(df_s.columns)
+    df_s = pd.read_csv(path_s).set_index("Year") 
+    common_cols = df_u.columns.intersection(df_s.columns) 
 
     df_u = df_u[common_cols].apply(pd.to_numeric, errors="coerce")
-    df_s = df_s[common_cols].apply(pd.to_numeric, errors="coerce")
+    df_s = df_s[common_cols].apply(pd.to_numeric, errors="coerce") #Pulls the files from both datasets and reads them. Any non-matching countries are filtered out
 
     results = []
 
     for col in common_cols:
         paired = pd.concat([df_u[col], df_s[col]], axis=1)
         paired.columns = ["Unemployment_Change", "Stock_Change"]
-        paired = paired.dropna()
+        paired = paired.dropna() #Concatenates the values for each table and checks for any missing data
 
         if len(paired) < 2:
             correlation = "N/A"
@@ -209,13 +210,13 @@ def compute_correlation(**context):
         else:
             correlation = paired["Unemployment_Change"].corr(paired["Stock_Change"])
             reason = ""
-
+        #Checks if the values can be correlated. If so, uses the Pearson correlation coefficient
         results.append({
             "Country": col,
             "Correlation": correlation,
             "Valid_Overlapping_Rows": len(paired),
             "Reason_If_NA": reason
-        })
+        }) #Adds a row to the output data before continuing the loop
 
     result = pd.DataFrame(results)
 
@@ -223,31 +224,32 @@ def compute_correlation(**context):
     result.to_csv(out_path, index=False)
     return out_path
 
-def generate_chart(**context):
-    df_corr = pd.read_csv("/opt/airflow/data/unemployment_stock_correlation.csv")
+def generate_chart():
+    df_corr = pd.read_csv("/opt/airflow/data/unemployment_stock_correlation.csv") #Reads the correlation file
 
-    df_corr["Valid_Overlapping_Rows"] = df_corr["Valid_Overlapping_Rows"].apply(lambda x: int(x))
+    df_corr["Valid_Overlapping_Rows"] = df_corr["Valid_Overlapping_Rows"].apply(lambda x: int(x)) #Converts the third column into integers to prevent errors involving floats
 
     df_corr = df_corr[
         (df_corr["Correlation"] != "N/A") &
         (df_corr["Valid_Overlapping_Rows"] >= 10)
-    ]
+    ] #Filters out any values with either only 'N/A' values or any country with less than 10 values.
 
     df_corr["Correlation"] = pd.to_numeric(df_corr["Correlation"], errors="coerce")
     df_corr = df_corr.dropna(subset=["Correlation"])
-    df_corr = df_corr.sort_values("Correlation")
+    df_corr = df_corr.sort_values("Correlation") #Converts values to numeric values and drops anything that can't be converted before soring them in increasing order
 
     countries = df_corr["Country"].tolist()
     correlations = [round(float(c), 2) for c in df_corr["Correlation"].tolist()]
-    colors = ['#185FA5' if c < 0 else '#993C1D' for c in correlations]
+    colors = ['#185FA5' if c < 0 else '#993C1D' for c in correlations] #Gets the list of countries, rounds all values to 2 decimal places, and styles values based on positive or negative correlation
 
     countries_json = json.dumps(countries)
     correlations_json = json.dumps(correlations)
-    colors_json = json.dumps(colors)
+    colors_json = json.dumps(colors) #Converts the lists to json strings so the HTML can read them.
 
     bar_height = 28
-    chart_height = max(400, len(countries) * (bar_height + 4) + 80)
+    chart_height = max(400, len(countries) * (bar_height + 4) + 80) #Additional styling for the height of both each individual bar and the overall chart.
 
+    #Generates the HTML for the html file.
     html = f"""<!DOCTYPE html>
 <html>
 <head>
